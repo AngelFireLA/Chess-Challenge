@@ -1,0 +1,60 @@
+using System;
+using ChessChallenge.API;
+
+public class MyBot : IChessBot
+{
+    Move emergencyMove;
+    bool isEmergencyMode;
+
+    int[] p = new[] { 0, 1, 3, 3, 5, 9, 1000 }; // Piece values: None, Pawn, Knight, Bishop, Rook, Queen, King
+
+    public Move Think(Board board, Timer timer) {
+        
+        if(timer.MillisecondsRemaining < 3000) {
+            isEmergencyMode = true;
+            emergencyMove = board.GetLegalMoves()[new Random().Next(board.GetLegalMoves().Length)];
+            return emergencyMove;
+        }
+
+        AlphaBeta(board, 4, int.MinValue, int.MaxValue, board.IsWhiteToMove);
+        return emergencyMove;
+    }
+    
+
+    int AlphaBeta(Board board, int depth, int a, int b, bool white) {
+            if (depth == 0){
+        return board.IsWhiteToMove ? MaterialScore(board) : -MaterialScore(board);}
+
+
+        Move[] moves = board.GetLegalMoves();
+Array.Sort(moves, (moveA, moveB) => (moveB.CapturePieceType != PieceType.None ? p[(int)moveB.CapturePieceType] - p[(int)moveB.MovePieceType] : 0)
+    .CompareTo(moveA.CapturePieceType != PieceType.None ? p[(int)moveA.CapturePieceType] - p[(int)moveA.MovePieceType] : 0));
+
+        for(int i = 0; i < moves.Length; i++) {
+            board.MakeMove(moves[i]);
+            var val = -AlphaBeta(board, depth - 1, -b, -a, !white);
+            board.UndoMove(moves[i]);
+            if(val > a) {
+                a = val;
+                if (depth == 4){
+                    emergencyMove = moves[i];}
+            }
+            a = Math.Max(a, val);
+            if (a >= b) break;    
+        }
+
+        return a;
+    }
+
+    int MaterialScore(Board board) {
+        int score = 0;
+        var pieceLists = board.GetAllPieceLists();
+        for(int i = 0; i < pieceLists.Length; i++) {
+            var pl = pieceLists[i];
+            if(pl.IsWhitePieceList) 
+                score += pl.Count * p[(int)pl.TypeOfPieceInList];
+            else 
+                score -= pl.Count * p[(int)pl.TypeOfPieceInList]; }
+        return score;
+    }
+} 

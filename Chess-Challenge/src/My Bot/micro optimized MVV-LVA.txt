@@ -1,55 +1,59 @@
-﻿using System;
+using System;
 using ChessChallenge.API;
-using System.Linq;
-namespace ChessChallenge.Example{
+
 public class MyBot : IChessBot
 {
     private Move emergencyMove;
-    int BIG_VALUE = 300000;
-    int[] p = new[] { -1000, 1, 3, 3, 5, 9, 100 }; // Piece values: None, Pawn, Knight, Bishop, Rook, Queen, King
-    
+    private bool isEmergencyMode;
+
+    int[] p = new[] { 0, 1, 3, 3, 5, 9, 1000 }; // Piece values: None, Pawn, Knight, Bishop, Rook, Queen, King
 
     public Move Think(Board board, Timer timer) {
         
         if(timer.MillisecondsRemaining < 3000) {
+            isEmergencyMode = true;
             emergencyMove = board.GetLegalMoves()[new Random().Next(board.GetLegalMoves().Length)];
             return emergencyMove;
         }
 
-        AlphaBeta(board, 4, -BIG_VALUE, BIG_VALUE, board.IsWhiteToMove);
+        AlphaBeta(board, 4, int.MinValue, int.MaxValue, board.IsWhiteToMove);
         return emergencyMove;
     }
 
     int AlphaBeta(Board board, int depth, int a, int b, bool white) {
-        if (board.IsInCheckmate()) return -30000;
-        if (board.IsRepeatedPosition() ||board.IsInsufficientMaterial() || board.FiftyMoveCounter >= 100 || board.GetLegalMoves().Length <= 0) return 0;
-        if (depth == 0) return MaterialScore(board, white);
+        if (depth == 0)
+            return MaterialScore(board, white);
 
 
-        var m = board.GetLegalMoves().OrderByDescending(x => GetMoveValue(x)).ToArray();
-        int recordEval = int.MinValue;
+        var m = board.GetLegalMoves();
+        Array.Sort(m, (moveA, moveB) => GetMoveValue(moveB).CompareTo(GetMoveValue(moveA))); // Sorting moves in descending order
+
         for(int i = 0; i < m.Length; i++) {
             board.MakeMove(m[i]);
             var val = -AlphaBeta(board, depth - 1, -b, -a, !white);
             board.UndoMove(m[i]);
 
-            if(val > recordEval) {
-                recordEval = val;
+            if(val >= b)
+                return b;
+
+            if(val > a) {
+                a = val;
                 if (depth == 4){
                     emergencyMove = m[i];}
             }
-            a = Math.Max(a, recordEval);
-            if (a >= b) break;       
+            }    
         }
 
-        return recordEval;
+        return a;
     }
 
     int GetMoveValue(Move move)
-    {
-       return p[(int)move.CapturePieceType] - p[(int)move.MovePieceType]; // MVV-LVA
-    }
-
+{
+    // 1 if piece is captured, 0 otherwise
+    int isCapture = move.CapturePieceType != PieceType.None ? 1 : 0;
+    // Apply MVV-LVA ordering and return 0 if not a capture move
+    return isCapture * (p[(int)move.CapturePieceType] - p[(int)move.MovePieceType]); 
+}
     int MaterialScore(Board board, bool white) {
         int s = 0;
         var pieceLists = board.GetAllPieceLists();
@@ -60,5 +64,3 @@ public class MyBot : IChessBot
         return s;
     }
 }
-}
-
